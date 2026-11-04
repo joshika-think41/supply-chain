@@ -59,13 +59,19 @@ const scenarioAdditionalSignals: Record<ScenarioType, NewsArticle[]> = {
 
 export function calculateState(scenario: ScenarioType | "baseline" = "baseline", liveNews: NewsArticle[] = []): DashboardState {
   const suppliers = clone(baselineSuppliers); const skus = clone(baselineSkus);
-  const news = clone(liveNews.length ? liveNews : fixtureNews);
+  const supportingNews = clone(liveNews.length ? liveNews : fixtureNews);
+  const news = clone(supportingNews);
   // Scenario signals deliberately lead the feed: they are the keyword-driven
   // operational context selected by the user, ahead of general world news.
   if (scenario !== "baseline") {
     const generatedAt = Date.now();
     const scenarioNews = [...clone(scenarioAdditionalSignals[scenario]), ...clone(scenarioSignals[scenario])]
-      .map((article, index) => ({ ...article, publishedAt: new Date(generatedAt - (index + 1) * 47 * 60 * 1000).toISOString() }));
+      .map((article, index) => {
+        const supportingArticle = supportingNews[index % supportingNews.length];
+        return supportingArticle
+          ? { ...article, source: `Scenario signal · ${supportingArticle.source}`, publishedAt: supportingArticle.publishedAt, url: supportingArticle.url }
+          : { ...article, publishedAt: new Date(generatedAt - (index + 1) * 47 * 60 * 1000).toISOString() };
+      });
     news.unshift(...scenarioNews);
   }
   if (scenario === "supplier-delay") { suppliers[0].onTime -= 14; suppliers[0].leadTime += 15; }
