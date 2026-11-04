@@ -3,6 +3,18 @@ import type { DashboardState, Insight, NewsArticle, ScenarioType, Sku, Supplier 
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 const severityFor = (score: number): Insight["severity"] => score >= 75 ? "critical" : score >= 55 ? "high" : score >= 35 ? "medium" : "low";
+function publishedNewsInterpretation(scenario: ScenarioType | "baseline", subject: string, articles: NewsArticle[], operationalImpact: string) {
+  if (!articles.length) return undefined;
+  const headlines = articles.slice(0, 2).map(article => `“${article.title}”`).join(" and ");
+  const scenarioMeaning: Record<ScenarioType | "baseline", string> = {
+    baseline: "These external signals should be monitored alongside the current operating baseline.",
+    "supplier-delay": "Together, these reports increase the likelihood that already-constrained supply will recover more slowly than planned.",
+    "demand-spike": "Together, these reports support treating the current demand increase as a planning risk rather than a short-lived order fluctuation.",
+    "logistics-disruption": "Together, these reports strengthen the case for assuming longer transit and recovery times on affected inbound routes.",
+    "adverse-news": "Together, these reports justify an immediate continuity review rather than waiting for the next normal supplier review cycle."
+  };
+  return `${headlines} are the most relevant current published signals for ${subject}. ${operationalImpact} ${scenarioMeaning[scenario]}`;
+}
 const scenarioSignals: Record<Exclude<ScenarioType, "">, NewsArticle[]> = {
   "supplier-delay": [
     { id: "scenario-supplier-1", title: "Taiwan power-management allocation tightens", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["Taiwan", "semiconductor"], summary: "The simulation assumes an allocation reduction that extends component lead times and reduces delivery reliability.", riskWeight: 26 },
@@ -102,16 +114,14 @@ function createInsights(suppliers: Supplier[], skus: Sku[], news: NewsArticle[],
       { label: "External signals", score: Math.min(100, Math.round(externalRisk * 4)), finding: relatedArticles.length ? `${relatedArticles.length} directly related article${relatedArticles.length > 1 ? "s" : ""}` : "No directly related article" }
     ];
     const newsNarrative = leadArticle ? ` The signal “${leadArticle.title}” indicates: ${leadArticle.summary}` : " No directly matched external signal is currently required to support this operating-risk finding.";
-    const newsSummary = relatedArticles.length
-      ? `${relatedArticles.length} directly matched signals point to the same exposure: ${relatedArticles.slice(0, 2).map(article => article.summary).join(" ")} Together, they support accelerating alternate-source validation and confirming the next available allocation.`
-      : undefined;
+    const newsSummary = publishedNewsInterpretation(scenario, supplier.name, relatedArticles, `For this supplier, the practical exposure is ${supplier.onTime}% on-time delivery and a ${supplier.leadTime}-day lead time.`);
     insights.push({ id: `supplier-${supplier.id}`, title: `${supplier.name} supply exposure`, severity: severityFor(score), score, confidence: Math.min(96, 62 + Math.round(score / 3)), category: "Supplier resilience", supplier: supplier.name, sku: affected?.name, explanation: `${supplier.name} is at risk because on-time delivery is ${supplier.onTime}%, lead time is ${supplier.leadTime} days, and the defect rate is ${supplier.defectRate}%.${newsNarrative}`, newsSummary, action: `Ask procurement to validate an alternate source and secure allocation for ${supplier.component}.`, evidence, factors, articles: relatedArticles.slice(0, 2), owner: "Procurement", change: `${score >= 60 ? "Escalated" : "Watch"} from latest refresh` });
   });
   skus.forEach((sku) => {
     const days = Math.floor(sku.inventory / sku.dailyDemand); const score = Math.min(100, Math.round(Math.max(0, 25 - days) * 3 + Math.max(0, sku.forecastVariance) * 1.5));
     if (score < 30) return;
     const inventoryArticles = scenario === "baseline" ? [] : news.slice(0, 2);
-    const inventoryNewsSummary = inventoryArticles.length ? `Recent external signals reinforce the ${scenario.replace(/-/g, " ")} scenario: ${inventoryArticles.map(article => article.summary).join(" ")} This supports revising allocation and demand commitments before available cover is exhausted.` : undefined;
+    const inventoryNewsSummary = publishedNewsInterpretation(scenario, sku.name, inventoryArticles, `For this SKU, ${days} days of cover and a ${sku.forecastVariance > 0 ? "+" : ""}${sku.forecastVariance}% forecast variance leave little room to absorb further demand changes.`);
     insights.push({ id: `inventory-${sku.id}`, title: `${sku.name} inventory risk`, severity: severityFor(score), score, confidence: 84, category: "Inventory & demand", sku: sku.name, explanation: `${sku.name} has ${days} days of cover while actual demand is ${Math.abs(sku.forecastVariance)}% ${sku.forecastVariance > 0 ? "above" : "below"} forecast.`, newsSummary: inventoryNewsSummary, action: "Review allocation, expedite constrained components, and update the short-term demand plan.", evidence: [{ label: "Days of cover", value: `${days} days`, direction: "down" }, { label: "Forecast variance", value: `${sku.forecastVariance > 0 ? "+" : ""}${sku.forecastVariance}%`, direction: sku.forecastVariance > 0 ? "up" : "down" }, { label: "Daily demand", value: `${sku.dailyDemand} units`, direction: "up" }], factors: [{ label: "Stock cover", score: Math.min(100, Math.max(0, (25 - days) * 4)), finding: `${days} days before stock-out` }, { label: "Demand acceleration", score: Math.min(100, Math.abs(sku.forecastVariance) * 4), finding: `${sku.forecastVariance > 0 ? "+" : ""}${sku.forecastVariance}% versus forecast` }, { label: "Supply dependency", score: 65, finding: "Single primary supplier" }], articles: inventoryArticles, owner: "Supply planning", change: "Updated from current demand signal" });
   });
   return insights.sort((a, b) => b.score - a.score);
