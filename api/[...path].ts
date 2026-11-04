@@ -20,8 +20,9 @@ async function generate(scenario: ScenarioType | "baseline", useGemini = true) {
   return state;
 }
 
-export default async function handler(req: { method?: string; query?: { path?: string[] }; body?: unknown }, res: { status: (code: number) => { json: (payload: unknown) => void } }) {
-  const path = (req.query?.path ?? []).join("/");
+export default async function handler(req: { method?: string; url?: string; query?: { path?: string[] | string }; body?: unknown }, res: { status: (code: number) => { json: (payload: unknown) => void } }) {
+  const routeParam = req.query?.path;
+  const path = Array.isArray(routeParam) ? routeParam.join("/") : routeParam ?? new URL(req.url ?? "/api", "https://local").pathname.replace(/^\/api\/?/, "");
   if (req.method === "GET" && path === "dashboard") return res.status(200).json(latest ?? await generate("baseline"));
   if (req.method === "GET" && path === "status") return res.status(200).json({ geminiConfigured: Boolean(process.env.GEMINI_API_KEY), newsConfigured: Boolean(process.env.NEWSDATA_API_KEY || process.env.NEWS_API_KEY), persistence: "in-memory demo snapshot" });
   if (req.method === "POST" && path === "refresh") return res.status(200).json(await generate("baseline"));
