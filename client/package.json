@@ -1,0 +1,9 @@
+{
+  "name": "supply-chain-dashboard-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "dev": "../node_modules/.bin/vite", "build": "../node_modules/.bin/tsc -b && ../node_modules/.bin/vite build" },
+  "dependencies": { "@vitejs/plugin-react": "^4.3.4", "vite": "^6.0.5", "react": "^18.3.1", "react-dom": "^18.3.1", "recharts": "^2.15.0" },
+  "devDependencies": { "@types/react": "^18.3.18", "@types/react-dom": "^18.3.5", "typescript": "^5.7.2" }
+}
