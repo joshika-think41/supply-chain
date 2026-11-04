@@ -52,7 +52,7 @@ export function calculateState(scenario: ScenarioType | "baseline" = "baseline",
   if (scenario === "demand-spike") { skus[0].dailyDemand += 55; skus[2].dailyDemand += 44; }
   if (scenario === "logistics-disruption") { suppliers.forEach((s) => { if (["Taiwan", "China", "Vietnam"].includes(s.country)) { s.leadTime += 9; s.onTime -= 6; } }); }
 
-  const insights = createInsights(suppliers, skus, news);
+  const insights = createInsights(suppliers, skus, news, scenario);
   if (scenario !== "baseline") {
     const eventName = scenario.replace(/-/g, " ");
     insights.forEach((insight) => { insight.change = `${eventName} simulation recalculated this finding using the active disruption signals`; });
@@ -74,7 +74,7 @@ export function calculateState(scenario: ScenarioType | "baseline" = "baseline",
   };
 }
 
-function createInsights(suppliers: Supplier[], skus: Sku[], news: NewsArticle[]): Insight[] {
+function createInsights(suppliers: Supplier[], skus: Sku[], news: NewsArticle[], scenario: ScenarioType | "baseline"): Insight[] {
   const insights: Insight[] = [];
   suppliers.forEach((supplier) => {
     const linked = skus.filter((sku) => sku.supplierId === supplier.id);
@@ -110,7 +110,9 @@ function createInsights(suppliers: Supplier[], skus: Sku[], news: NewsArticle[])
   skus.forEach((sku) => {
     const days = Math.floor(sku.inventory / sku.dailyDemand); const score = Math.min(100, Math.round(Math.max(0, 25 - days) * 3 + Math.max(0, sku.forecastVariance) * 1.5));
     if (score < 30) return;
-    insights.push({ id: `inventory-${sku.id}`, title: `${sku.name} inventory risk`, severity: severityFor(score), score, confidence: 84, category: "Inventory & demand", sku: sku.name, explanation: `${sku.name} has ${days} days of cover while actual demand is ${Math.abs(sku.forecastVariance)}% ${sku.forecastVariance > 0 ? "above" : "below"} forecast.`, action: "Review allocation, expedite constrained components, and update the short-term demand plan.", evidence: [{ label: "Days of cover", value: `${days} days`, direction: "down" }, { label: "Forecast variance", value: `${sku.forecastVariance > 0 ? "+" : ""}${sku.forecastVariance}%`, direction: sku.forecastVariance > 0 ? "up" : "down" }, { label: "Daily demand", value: `${sku.dailyDemand} units`, direction: "up" }], factors: [{ label: "Stock cover", score: Math.min(100, Math.max(0, (25 - days) * 4)), finding: `${days} days before stock-out` }, { label: "Demand acceleration", score: Math.min(100, Math.abs(sku.forecastVariance) * 4), finding: `${sku.forecastVariance > 0 ? "+" : ""}${sku.forecastVariance}% versus forecast` }, { label: "Supply dependency", score: 65, finding: "Single primary supplier" }], articles: [], owner: "Supply planning", change: "Updated from current demand signal" });
+    const inventoryArticles = scenario === "baseline" ? [] : news.slice(0, 2);
+    const inventoryNewsSummary = inventoryArticles.length ? `Recent external signals reinforce the ${scenario.replace(/-/g, " ")} scenario: ${inventoryArticles.map(article => article.summary).join(" ")} This supports revising allocation and demand commitments before available cover is exhausted.` : undefined;
+    insights.push({ id: `inventory-${sku.id}`, title: `${sku.name} inventory risk`, severity: severityFor(score), score, confidence: 84, category: "Inventory & demand", sku: sku.name, explanation: `${sku.name} has ${days} days of cover while actual demand is ${Math.abs(sku.forecastVariance)}% ${sku.forecastVariance > 0 ? "above" : "below"} forecast.`, newsSummary: inventoryNewsSummary, action: "Review allocation, expedite constrained components, and update the short-term demand plan.", evidence: [{ label: "Days of cover", value: `${days} days`, direction: "down" }, { label: "Forecast variance", value: `${sku.forecastVariance > 0 ? "+" : ""}${sku.forecastVariance}%`, direction: sku.forecastVariance > 0 ? "up" : "down" }, { label: "Daily demand", value: `${sku.dailyDemand} units`, direction: "up" }], factors: [{ label: "Stock cover", score: Math.min(100, Math.max(0, (25 - days) * 4)), finding: `${days} days before stock-out` }, { label: "Demand acceleration", score: Math.min(100, Math.abs(sku.forecastVariance) * 4), finding: `${sku.forecastVariance > 0 ? "+" : ""}${sku.forecastVariance}% versus forecast` }, { label: "Supply dependency", score: 65, finding: "Single primary supplier" }], articles: inventoryArticles, owner: "Supply planning", change: "Updated from current demand signal" });
   });
   return insights.sort((a, b) => b.score - a.score);
 }
