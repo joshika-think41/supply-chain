@@ -59,7 +59,7 @@ async function getGdeltNews(scenario: ScenarioType | "baseline") {
       const key = article.title.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (unique.has(key)) return false;
       unique.add(key); return true;
-    }).slice(0, 5);
+    }).sort((left, right) => Date.parse(right.publishedAt) - Date.parse(left.publishedAt)).slice(0, 5);
     return articles.length ? articles : undefined;
   } catch { return undefined; }
 }
