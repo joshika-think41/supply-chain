@@ -16,7 +16,7 @@ const app = express(); app.use(cors()); app.use(express.json());
 const validScenarios = new Set<ScenarioType>(["supplier-delay", "demand-spike", "logistics-disruption", "adverse-news"]);
 
 async function generate(scenario: ScenarioType | "baseline", useGemini = true) {
-  const news = await getNews(scenario);
+  const news = await getNews(scenario, useGemini ? "full" : "fast");
   const state = calculateState(scenario, news.articles);
   if (useGemini) {
     const gemini = await enrichWithGemini(state.insights);

@@ -7,7 +7,7 @@ const scenarios = new Set<ScenarioType>(["supplier-delay", "demand-spike", "logi
 let latest: DashboardState | undefined;
 
 async function generate(scenario: ScenarioType | "baseline", useGemini = true) {
-  const news = await getNews(scenario);
+  const news = await getNews(scenario, useGemini ? "full" : "fast");
   const state = calculateState(scenario, news.articles);
   if (useGemini) {
     const gemini = await enrichWithGemini(state.insights);

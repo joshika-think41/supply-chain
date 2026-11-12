@@ -1,7 +1,9 @@
 import { fixtureNews } from "./seed.js";
 import type { NewsArticle, ProviderStatus, ScenarioType } from "./types.js";
 
-const cachedNews = new Map<string, { result: { articles: NewsArticle[]; status: ProviderStatus }; expiresAt: number }>();
+type NewsMode = "fast" | "full";
+const cachedNews = new Map<string, { mode: NewsMode; result: { articles: NewsArticle[]; status: ProviderStatus }; expiresAt: number }>();
+const FAST_NEWS_TIMEOUT_MS = 1_500;
 
 const trackedTerms: Record<string, RegExp[]> = {
   Taiwan: [/\btaiwan(?:ese)?\b/i],
@@ -23,6 +25,10 @@ function tagsFor(title: string, description: string) {
 function shortSummary(value: string, limit = 42) {
   const words = value.replace(/\s+/g, " ").trim().split(" ");
   return words.length > limit ? `${words.slice(0, limit).join(" ")}…` : words.join(" ");
+}
+
+function fetchWithTimeout(url: string, timeoutMs: number) {
+  return fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
 }
 
 function isOperationallyRelevant(title: string, description: string, tags: string[]) {
@@ -90,11 +96,12 @@ async function externalFallback(scenario: ScenarioType | "baseline") {
   return [...(gdelt ?? []), ...google].filter(article => { const key = article.title.toLowerCase().replace(/[^a-z0-9]/g, ""); if (seen.has(key)) return false; seen.add(key); return true; }).slice(0, 5);
 }
 
-export async function getNews(scenario: ScenarioType | "baseline" = "baseline"): Promise<{ articles: NewsArticle[]; status: ProviderStatus }> {
+export async function getNews(scenario: ScenarioType | "baseline" = "baseline", mode: NewsMode = "full"): Promise<{ articles: NewsArticle[]; status: ProviderStatus }> {
   const cached = cachedNews.get(scenario);
-  if (cached && cached.expiresAt > Date.now()) return cached.result;
+  if (cached && cached.expiresAt > Date.now() && (mode === "fast" || cached.mode === "full")) return cached.result;
   const key = process.env.NEWSDATA_API_KEY || process.env.NEWS_API_KEY;
   if (!key) {
+    if (mode === "fast") return { articles: fixtureNews, status: { configured: false, mode: "fallback", detail: "Fast scenario context used; no NewsData.io key configured" } };
     const externalArticles = await externalFallback(scenario);
     return externalArticles.length
       ? { articles: externalArticles, status: { configured: false, mode: "live", detail: `${externalArticles.length} current, linked articles from external news sources` } }
@@ -102,8 +109,9 @@ export async function getNews(scenario: ScenarioType | "baseline" = "baseline"):
   }
   try {
     const params = new URLSearchParams({ apikey: key, q: scenarioQueries[scenario], language: "en", size: "8" });
-    const response = await fetch(`https://newsdata.io/api/1/latest?${params}`);
+    const response = await fetchWithTimeout(`https://newsdata.io/api/1/latest?${params}`, mode === "fast" ? FAST_NEWS_TIMEOUT_MS : 8_000);
     if (!response.ok) {
+      if (mode === "fast") return { articles: fixtureNews, status: { configured: true, mode: "fallback", detail: `Fast scenario context used; NewsData.io returned HTTP ${response.status}` } };
       const externalArticles = await externalFallback(scenario);
       return externalArticles.length ? { articles: externalArticles, status: { configured: true, mode: "live", detail: `${externalArticles.length} current, linked articles from external news sources` } } : { articles: fixtureNews, status: { configured: true, mode: "fallback", detail: `NewsData.io returned HTTP ${response.status}; using curated watchlist` } };
     }
@@ -119,6 +127,13 @@ export async function getNews(scenario: ScenarioType | "baseline" = "baseline"):
       seenTitles.add(titleKey);
       return isOperationallyRelevant(article.title, article.summary, article.tags);
     });
+    if (mode === "fast") {
+      const result = articles.length
+        ? { articles, status: { configured: true, mode: "live" as const, detail: `${articles.length} fast NewsData.io article${articles.length === 1 ? "" : "s"}` } }
+        : { articles: fixtureNews, status: { configured: true, mode: "fallback" as const, detail: "Fast scenario context used; live news was unavailable within 1.5 seconds" } };
+      cachedNews.set(scenario, { mode, result, expiresAt: Date.now() + 10 * 60 * 1000 });
+      return result;
+    }
     const externalArticles = articles.length < 5 ? await externalFallback(scenario) : [];
     const titles = new Set<string>();
     const combined = [...articles, ...externalArticles].filter(article => {
@@ -129,9 +144,10 @@ export async function getNews(scenario: ScenarioType | "baseline" = "baseline"):
     const result: { articles: NewsArticle[]; status: ProviderStatus } = combined.length
       ? { articles: combined, status: { configured: true, mode: "live", detail: `${combined.length} current, linked articles from external news sources` } }
       : { articles: fixtureNews, status: { configured: true, mode: "fallback", detail: "No current external article passed relevance checks; using curated watchlist" } };
-    cachedNews.set(scenario, { result, expiresAt: Date.now() + 10 * 60 * 1000 });
+    cachedNews.set(scenario, { mode, result, expiresAt: Date.now() + 10 * 60 * 1000 });
     return result;
   } catch {
+    if (mode === "fast") return { articles: fixtureNews, status: { configured: true, mode: "fallback", detail: "Fast scenario context used; live news exceeded the 1.5-second budget" } };
     const externalArticles = await externalFallback(scenario);
     return externalArticles.length
       ? { articles: externalArticles, status: { configured: true, mode: "live", detail: `${externalArticles.length} current, linked articles from external news sources` } }
