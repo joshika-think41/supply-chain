@@ -1,4 +1,4 @@
-import { fixtureNews, skus as baselineSkus, suppliers as baselineSuppliers } from "./seed.js";
+import { skus as baselineSkus, suppliers as baselineSuppliers } from "./seed.js";
 import type { DashboardState, Insight, NewsArticle, ScenarioType, Sku, Supplier } from "./types.js";
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -15,65 +15,11 @@ function publishedNewsInterpretation(scenario: ScenarioType | "baseline", subjec
   };
   return `${headlines} are the most relevant current published signals for ${subject}. ${operationalImpact} ${scenarioMeaning[scenario]}`;
 }
-const scenarioSignals: Record<Exclude<ScenarioType, "">, NewsArticle[]> = {
-  "supplier-delay": [
-    { id: "scenario-supplier-1", title: "Taiwan power-management allocation tightens", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["Taiwan", "semiconductor"], summary: "The simulation assumes an allocation reduction that extends component lead times and reduces delivery reliability.", riskWeight: 26 },
-    { id: "scenario-supplier-2", title: "Alternate-source qualification window opens", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["semiconductor", "supply"], summary: "Procurement has a time-boxed opportunity to secure an alternate approved source.", riskWeight: 14 }
-  ],
-  "demand-spike": [
-    { id: "scenario-demand-1", title: "Premium laptop orders exceed the approved plan", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["semiconductor", "demand"], summary: "The simulation increases PulseBook demand beyond the approved demand plan, reducing days of cover.", riskWeight: 22 },
-    { id: "scenario-demand-2", title: "Allocation review required for constrained SKUs", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["supply", "demand"], summary: "Available inventory should be reassessed before committing to new customer orders.", riskWeight: 13 }
-  ],
-  "logistics-disruption": [
-    { id: "scenario-logistics-1", title: "Asia export lanes are delayed", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["Taiwan", "China", "Vietnam", "logistics"], summary: "The simulation adds transit and booking delays across key Asia manufacturing routes.", riskWeight: 25 },
-    { id: "scenario-logistics-2", title: "Expedited freight threshold is reached", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["logistics", "freight"], summary: "Affected shipments should be assessed for expediting or customer-commitment changes.", riskWeight: 15 }
-  ],
-  "adverse-news": [
-    { id: "scenario-news-1", title: "Supplier continuity alert is issued", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["Taiwan", "semiconductor"], summary: "The simulation introduces a verified continuity concern for the power-management component supply base.", riskWeight: 30 },
-    { id: "scenario-news-2", title: "Leadership escalation threshold is reached", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["supplier", "risk"], summary: "The impact exceeds the normal planner exception threshold and requires cross-functional review.", riskWeight: 18 }
-  ]
-};
-
-const scenarioAdditionalSignals: Record<ScenarioType, NewsArticle[]> = {
-  "supplier-delay": [
-    { id: "scenario-supplier-3", title: "Component test capacity is reassigned to priority programs", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["Taiwan", "semiconductor"], summary: "The simulated allocation change reduces available qualification and recovery capacity for non-priority customers.", riskWeight: 12 },
-    { id: "scenario-supplier-4", title: "Power-management lead-time commitment moves beyond the planning horizon", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["semiconductor", "supply"], summary: "Confirmed supply dates extend beyond the current material plan and require customer-commitment review.", riskWeight: 16 },
-    { id: "scenario-supplier-5", title: "Alternate-source validation is prioritized for constrained components", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["semiconductor", "supply"], summary: "Engineering and procurement can reduce exposure by accelerating approved-source validation.", riskWeight: 10 }
-  ],
-  "demand-spike": [
-    { id: "scenario-demand-3", title: "Retail promotion lifts premium laptop demand above baseline", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["demand", "semiconductor"], summary: "Order intake rises ahead of the agreed forecast, consuming available component cover faster.", riskWeight: 16 },
-    { id: "scenario-demand-4", title: "PulseBook inventory cover moves into the planner exception window", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["demand", "supply"], summary: "Available stock no longer covers the new demand profile without allocation decisions.", riskWeight: 18 },
-    { id: "scenario-demand-5", title: "Demand consensus needs revision before the next supply commit", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["demand", "supply"], summary: "Sales and supply planning should align on a revised demand signal before releasing new commitments.", riskWeight: 11 }
-  ],
-  "logistics-disruption": [
-    { id: "scenario-logistics-3", title: "Port dwell time pushes component arrivals past scheduled receipt dates", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["logistics", "Taiwan", "China"], summary: "The simulated dwell-time increase moves inbound component arrivals beyond planned receiving dates.", riskWeight: 18 },
-    { id: "scenario-logistics-4", title: "Carrier booking capacity is restricted on Asia export routes", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["logistics", "Vietnam"], summary: "Outbound booking constraints reduce flexibility to recover delayed shipments.", riskWeight: 14 },
-    { id: "scenario-logistics-5", title: "Customer promise dates require review for delayed inbound material", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["logistics", "supply"], summary: "Planning should identify orders exposed to the new transit-time assumption.", riskWeight: 12 }
-  ],
-  "adverse-news": [
-    { id: "scenario-news-3", title: "Supplier continuity review opens for critical power components", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["Taiwan", "semiconductor"], summary: "The simulated alert triggers a continuity review of the affected component source.", riskWeight: 21 },
-    { id: "scenario-news-4", title: "Quality and procurement teams begin joint supplier assessment", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["supplier", "risk"], summary: "A cross-functional review is needed to establish containment and qualification actions.", riskWeight: 14 },
-    { id: "scenario-news-5", title: "Leadership decision requested on alternate-source acceleration", source: "Scenario signal", publishedAt: new Date().toISOString(), url: "#", tags: ["semiconductor", "supply"], summary: "The simulation requires a decision on the cost and timing of alternate-source validation.", riskWeight: 13 }
-  ]
-};
-
 export function calculateState(scenario: ScenarioType | "baseline" = "baseline", liveNews: NewsArticle[] = []): DashboardState {
   const suppliers = clone(baselineSuppliers); const skus = clone(baselineSkus);
-  const supportingNews = clone(liveNews.length ? liveNews : fixtureNews);
-  const news = clone(supportingNews);
-  // Scenario signals deliberately lead the feed: they are the keyword-driven
-  // operational context selected by the user, ahead of general world news.
-  if (scenario !== "baseline") {
-    const generatedAt = Date.now();
-    const scenarioNews = [...clone(scenarioAdditionalSignals[scenario]), ...clone(scenarioSignals[scenario])]
-      .map((article, index) => {
-        const supportingArticle = supportingNews[index % supportingNews.length];
-        return supportingArticle
-          ? { ...article, source: `Scenario signal · ${supportingArticle.source}`, publishedAt: supportingArticle.publishedAt, url: supportingArticle.url }
-          : { ...article, publishedAt: new Date(generatedAt - (index + 1) * 47 * 60 * 1000).toISOString() };
-      });
-    news.unshift(...scenarioNews);
-  }
+  // World News contains only externally published articles. Simulations change
+  // operational metrics; they never manufacture dates or links for news cards.
+  const news = clone(liveNews.filter((article) => article.url && article.url !== "#"));
   if (scenario === "supplier-delay") { suppliers[0].onTime -= 14; suppliers[0].leadTime += 15; }
   if (scenario === "demand-spike") { skus[0].dailyDemand += 55; skus[2].dailyDemand += 44; }
   if (scenario === "logistics-disruption") { suppliers.forEach((s) => { if (["Taiwan", "China", "Vietnam"].includes(s.country)) { s.leadTime += 9; s.onTime -= 6; } }); }
